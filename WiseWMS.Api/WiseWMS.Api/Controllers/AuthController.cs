@@ -16,9 +16,9 @@ namespace WiseWMS.Api.Controllers
         }
 
         [HttpPost("login")]
-        public IActionResult Login([FromBody] LoginDto dto)
+        public async Task<IActionResult> Login([FromBody] LoginDto dto)
         {
-            var result = _authService.Login(dto);
+            var result = await _authService.Login(dto);
             if (result == null)
             {
                 return Unauthorized(new { message = "账号或密码错误" });

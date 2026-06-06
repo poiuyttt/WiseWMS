@@ -1,6 +1,7 @@
 ﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
@@ -24,9 +25,11 @@ namespace WiseWMS.Application.Services
             _logger = logger;
         }
 
-        public LoginResultDto? Login(LoginDto dto)
+        public async Task<LoginResultDto?> Login(LoginDto dto)
         {
-            User? user = _dbContext.Users.FirstOrDefault(u => u.Username == dto.Username);
+            User? user = await _dbContext.Users.FirstOrDefaultAsync(u =>
+                u.Username == dto.Username
+            );
             if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
             {
                 _logger.LogWarning("用户 {Username} 登录失败：账号或密码错误", dto.Username);

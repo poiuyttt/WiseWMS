@@ -17,5 +17,8 @@ namespace WiseWMS.Infrastructure.Entities
         public string Remark { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public int OperatorId { get; set; } // 谁操作的
+
+        public Product? Product { get; set; }
+        public User? Operator { get; set; }
     }
 }

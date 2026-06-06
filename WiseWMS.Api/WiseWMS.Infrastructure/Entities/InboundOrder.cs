@@ -17,6 +17,8 @@ namespace WiseWMS.Infrastructure.Entities
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // 导航属性 EF Core 自动关联
+        public Supplier? Supplier { get; set; }
+        public User? Operator { get; set; }
         public List<InboundItem> Items { get; set; } = new();
     }
 }

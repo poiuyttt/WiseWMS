@@ -10,5 +10,8 @@ namespace WiseWMS.Infrastructure.Entities
         public int ProductId { get; set; } // 入库的商品 Id
         public int Quantity { get; set; } // 数量
         public decimal UnitPrice { get; set; } // 入库单价
+
+        public InboundOrder? InboundOrder { get; set; }
+        public Product? Product { get; set; }
     }
 }

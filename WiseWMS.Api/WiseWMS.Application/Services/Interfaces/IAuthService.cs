@@ -15,6 +15,6 @@ namespace WiseWMS.Application.Services.Interfaces
         /// <summary>
         /// 登录：校验账号密码，返回 JWT 令牌
         /// </summary>
-        LoginResultDto? Login(LoginDto dto);
+        Task<LoginResultDto?> Login(LoginDto dto);
     }
 }

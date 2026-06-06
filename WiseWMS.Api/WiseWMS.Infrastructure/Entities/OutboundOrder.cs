@@ -16,6 +16,8 @@ namespace WiseWMS.Infrastructure.Entities
         public string Remark { get; set; } = string.Empty; // 备注
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        public Customer? Customer { get; set; }
+        public User? Operator { get; set; }
         public List<OutboundItem> Items { get; set; } = new();
     }
 }

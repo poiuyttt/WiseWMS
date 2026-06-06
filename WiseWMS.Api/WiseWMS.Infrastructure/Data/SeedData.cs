@@ -6,6 +6,17 @@ namespace WiseWMS.Infrastructure.Data
     {
         public static void Initialize(AppDbContext db)
         {
+            if (!db.Categories.Any())
+            {
+                db.Categories.AddRange(
+                    new Category { Name = "食品饮料" },
+                    new Category { Name = "日用品" },
+                    new Category { Name = "电子数码" },
+                    new Category { Name = "办公用品" }
+                );
+                db.SaveChanges();
+            }
+
             if (db.Users.Any())
                 return;
 
