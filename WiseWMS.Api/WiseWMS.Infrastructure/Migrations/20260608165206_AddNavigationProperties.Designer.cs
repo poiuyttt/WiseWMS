@@ -12,7 +12,7 @@ using WiseWMS.Infrastructure.Data;
 namespace WiseWMS.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260606143006_AddNavigationProperties")]
+    [Migration("20260608165206_AddNavigationProperties")]
     partial class AddNavigationProperties
     {
         /// <inheritdoc />

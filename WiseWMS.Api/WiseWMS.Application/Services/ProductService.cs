@@ -20,21 +20,22 @@ namespace WiseWMS.Application.Services
 
         public async Task<PagedResult<ProductDto>> GetAll(string? keyword, int page, int pageSize)
         {
-            _logger.LogInformation($"查询商品列表：关键词={keyword}, 页码={page}, 每页={pageSize}");
+            _logger.LogInformation(
+                "查询商品列表：关键词={Keyword}, 页码={Page}, 每页={PageSize}",
+                keyword,
+                page,
+                pageSize
+            );
 
-            // 1. 查所有商品，带上分类信息
             var query = _db.Products.Include(p => p.Category).AsQueryable();
 
-            // 2. 有关键词就按名称或规格搜索
             if (!string.IsNullOrEmpty(keyword))
             {
                 query = query.Where(p => p.Name.Contains(keyword) || p.Spec.Contains(keyword));
             }
 
-            // 3. 算总数
             var total = await query.CountAsync();
 
-            // 4. 分页（Skip 跳过前面的，Take 取当前页的）
             var items = await query
                 .OrderByDescending(p => p.CreatedAt)
                 .Skip((page - 1) * pageSize)
@@ -66,7 +67,7 @@ namespace WiseWMS.Application.Services
 
         public async Task<ProductDto?> GetById(int id)
         {
-            _logger.LogInformation($"查询商品详情：ID={id}");
+            _logger.LogInformation("查询商品详情：ID={Id}", id);
 
             var product = await _db
                 .Products.Include(p => p.Category)
@@ -74,7 +75,7 @@ namespace WiseWMS.Application.Services
 
             if (product == null)
             {
-                _logger.LogWarning($"商品不存在：ID={id}");
+                _logger.LogWarning("商品不存在：ID={Id}", id);
                 return null;
             }
 
@@ -102,7 +103,9 @@ namespace WiseWMS.Application.Services
             if (exists)
             {
                 _logger.LogWarning(
-                    $"新增商品失败：同名同规格商品已存在：名称={dto.Name}, 规格={dto.Spec}"
+                    "新增商品失败：同名同规格商品已存在：名称={Name}, 规格={Spec}",
+                    dto.Name,
+                    dto.Spec
                 );
                 return null;
             }
@@ -122,7 +125,11 @@ namespace WiseWMS.Application.Services
             await _db.Products.AddAsync(product);
             await _db.SaveChangesAsync();
 
-            _logger.LogInformation($"新增商品成功：ID={product.Id}，名称={product.Name}");
+            _logger.LogInformation(
+                "新增商品成功：ID={product.Id}，名称={product.Name}",
+                product.Id,
+                product.Name
+            );
 
             await _db.Entry(product).Reference(p => p.Category).LoadAsync();
 
@@ -147,7 +154,7 @@ namespace WiseWMS.Application.Services
             var product = await _db.Products.FindAsync(id);
             if (product == null)
             {
-                _logger.LogWarning($"商品不存在：ID={id}");
+                _logger.LogWarning("商品不存在：ID={Id}", id);
                 return null;
             }
 
@@ -161,7 +168,7 @@ namespace WiseWMS.Application.Services
 
             await _db.SaveChangesAsync();
 
-            _logger.LogInformation($"更新商品成功：ID={product.Id}");
+            _logger.LogInformation("更新商品成功：ID={Id}", product.Id);
 
             await _db.Entry(product).Reference(p => p.Category).LoadAsync();
 
@@ -186,14 +193,14 @@ namespace WiseWMS.Application.Services
             var product = await _db.Products.FindAsync(id);
             if (product == null)
             {
-                _logger.LogWarning($"商品不存在：ID={id}");
+                _logger.LogWarning("商品不存在：ID={Id}", id);
                 return false;
             }
 
             _db.Products.Remove(product);
             await _db.SaveChangesAsync();
 
-            _logger.LogInformation($"删除商品成功：ID={id}");
+            _logger.LogInformation("删除商品成功：ID={Id}", id);
 
             return true;
         }
