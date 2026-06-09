@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Azure;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using WiseWMS.Application.DTOs;
 using WiseWMS.Application.Services.Interfaces;
@@ -63,6 +64,29 @@ namespace WiseWMS.Application.Services
                 Page = page,
                 PageSize = pageSize,
             };
+        }
+
+        public async Task<List<ProductDto>> GetAll()
+        {
+            _logger.LogInformation("查询商品列表");
+
+            return await _db
+                .Products.Include(p => p.Category)
+                .Select(p => new ProductDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Spec = p.Spec,
+                    Unit = p.Unit,
+                    CategoryId = p.CategoryId,
+                    CategoryName = p.Category.Name,
+                    Price = p.Price,
+                    Stock = p.Stock,
+                    MinStock = p.MinStock,
+                    Description = p.Description,
+                    CreatedAt = p.CreatedAt,
+                })
+                .ToListAsync();
         }
 
         public async Task<ProductDto?> GetById(int id)

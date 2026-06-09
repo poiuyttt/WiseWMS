@@ -62,5 +62,48 @@ namespace WiseWMS.Api.Controllers
                 return NotFound(new { message = "商品不存在" });
             return Ok(new { message = "删除成功" });
         }
+
+        [HttpGet("export")]
+        public async Task<IActionResult> Export()
+        {
+            var products = await _productService.GetAll();
+
+            var workbook = new ClosedXML.Excel.XLWorkbook();
+            var sheet = workbook.Worksheets.Add("商品列表");
+
+            sheet.Cell(1, 1).Value = "商品名称";
+            sheet.Cell(1, 2).Value = "规格";
+            sheet.Cell(1, 3).Value = "单位";
+            sheet.Cell(1, 4).Value = "分类";
+            sheet.Cell(1, 5).Value = "售价";
+            sheet.Cell(1, 6).Value = "库存";
+            sheet.Cell(1, 7).Value = "预警线";
+            sheet.Cell(1, 8).Value = "创建时间";
+
+            int row = 2;
+            foreach (var p in products)
+            {
+                sheet.Cell(row, 1).Value = p.Name;
+                sheet.Cell(row, 2).Value = p.Spec;
+                sheet.Cell(row, 3).Value = p.Unit;
+                sheet.Cell(row, 4).Value = p.CategoryName;
+                sheet.Cell(row, 5).Value = p.Price;
+                sheet.Cell(row, 6).Value = p.Stock;
+                sheet.Cell(row, 7).Value = p.MinStock;
+                sheet.Cell(row, 8).Value = p.CreatedAt.ToString("yyyy-MM-dd");
+                row++;
+            }
+
+            sheet.Columns().Width = 15;
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            stream.Position = 0;
+            return File(
+                stream.ToArray(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "商品列表.xlsx"
+            );
+        }
     }
 }
