@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using WiseWMS.Application.DTOs;
 using WiseWMS.Application.Services.Interfaces;
@@ -20,104 +20,121 @@ namespace WiseWMS.Application.Services
 
         public async Task<InboundOrderDto> Create(CreateInboundDto dto, int operatorId)
         {
-            string today = DateTime.UtcNow.ToString("yyyyMMdd");
+            using var tx = await _db.Database.BeginTransactionAsync();
 
-            int count = await _db.InboundOrders.CountAsync(o =>
-                o.OrderNo.StartsWith($"IN-{today}")
-            );
-            string orderNo = $"IN-{today}-{count + 1:D4}";
-
-            decimal totalAmount = dto.Items.Sum(i => i.Quantity * i.UnitPrice);
-
-            var order = new InboundOrder
+            try
             {
-                OrderNo = orderNo,
-                SupplierId = dto.SupplierId,
-                OperatorId = operatorId,
-                TotalAmount = totalAmount,
-                Remark = dto.Remark,
-                CreatedAt = DateTime.UtcNow,
-            };
+                string today = DateTime.UtcNow.ToString("yyyyMMdd");
 
-            _db.InboundOrders.Add(order);
+                int count = await _db.InboundOrders.CountAsync(o =>
+                    o.CreatedAt >= DateTime.UtcNow.Date
+                );
+                string orderNo = $"IN-{today}-{count + 1:D4}";
 
-            foreach (var item in dto.Items)
-            {
-                var product = await _db.Products.FindAsync(item.ProductId);
-                if (product == null)
+                decimal totalAmount = dto.Items.Sum(i => i.Quantity * i.UnitPrice);
+
+                var order = new InboundOrder
                 {
-                    _logger.LogWarning("入库失败：商品不存在，ID={ProductId}", item.ProductId);
-                    throw new InvalidOperationException($"商品不存在：ID={item.ProductId}");
+                    OrderNo = orderNo,
+                    SupplierId = dto.SupplierId,
+                    OperatorId = operatorId,
+                    TotalAmount = totalAmount,
+                    Remark = dto.Remark,
+                    CreatedAt = DateTime.UtcNow,
+                };
+
+                _db.InboundOrders.Add(order);
+
+                foreach (var item in dto.Items)
+                {
+                    // 使用 FirstOrDefault 而非 FindAsync，让后续 SaveChanges 之前
+                    // 对同一 product 的修改都作用在同一个被追踪的实体上
+                    var product = await _db.Products.FirstOrDefaultAsync(p =>
+                        p.Id == item.ProductId
+                    );
+
+                    if (product == null)
+                    {
+                        _logger.LogWarning("入库失败：商品不存在，ID={ProductId}", item.ProductId);
+                        throw new InvalidOperationException($"商品不存在：ID={item.ProductId}");
+                    }
+
+                    order.Items.Add(
+                        new InboundItem
+                        {
+                            ProductId = item.ProductId,
+                            Quantity = item.Quantity,
+                            UnitPrice = item.UnitPrice,
+                        }
+                    );
+
+                    int stockBefore = product.Stock;
+                    product.Stock += item.Quantity;
+
+                    _db.InventoryTransactions.Add(
+                        new InventoryTransaction
+                        {
+                            ProductId = item.ProductId,
+                            Type = "In",
+                            Quantity = item.Quantity,
+                            StockBefore = stockBefore,
+                            StockAfter = product.Stock,
+                            OrderNo = orderNo,
+                            Remark = $"入库单 {orderNo}",
+                            CreatedAt = DateTime.UtcNow,
+                            OperatorId = operatorId,
+                        }
+                    );
                 }
 
-                order.Items.Add(
-                    new InboundItem
-                    {
-                        ProductId = item.ProductId,
-                        Quantity = item.Quantity,
-                        UnitPrice = item.UnitPrice,
-                    }
+                await _db.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                _logger.LogInformation(
+                    "入库单创建成功：单号={OrderNo}, 金额={TotalAmount}",
+                    orderNo,
+                    totalAmount
                 );
 
-                int stockBefore = product.Stock;
-                product.Stock += item.Quantity;
+                // 重新查询，一次性加载所有关联数据
+                // AsNoTracking 避免跟已追踪的实体冲突
+                order = await _db
+                    .InboundOrders.AsNoTracking()
+                    .Include(o => o.Supplier)
+                    .Include(o => o.Operator)
+                    .Include(o => o.Items)
+                        .ThenInclude(i => i.Product)
+                    .FirstAsync(o => o.Id == order.Id);
 
-                _db.InventoryTransactions.Add(
-                    new InventoryTransaction
-                    {
-                        ProductId = item.ProductId,
-                        Type = "In",
-                        Quantity = item.Quantity,
-                        StockBefore = stockBefore,
-                        StockAfter = product.Stock,
-                        OrderNo = orderNo,
-                        Remark = $"入库单 {orderNo}",
-                        CreatedAt = DateTime.UtcNow,
-                        OperatorId = operatorId,
-                    }
-                );
+                return new InboundOrderDto
+                {
+                    Id = order.Id,
+                    OrderNo = order.OrderNo,
+                    SupplierId = order.SupplierId,
+                    SupplierName = order.Supplier != null ? order.Supplier.Name : "",
+                    OperatorId = order.OperatorId,
+                    OperatorName = order.Operator != null ? order.Operator.DisplayName : "",
+                    TotalAmount = order.TotalAmount,
+                    Remark = order.Remark,
+                    CreatedAt = order.CreatedAt,
+                    Items = order
+                        .Items.Select(i => new InboundItemDto
+                        {
+                            Id = i.Id,
+                            ProductId = i.ProductId,
+                            ProductName = i.Product != null ? i.Product.Name : "",
+                            ProductSpec = i.Product != null ? i.Product.Spec : "",
+                            Quantity = i.Quantity,
+                            UnitPrice = i.UnitPrice,
+                        })
+                        .ToList(),
+                };
             }
-            await _db.SaveChangesAsync();
-
-            _logger.LogInformation(
-                "入库单创建成功：单号={OrderNo}, 金额={TotalAmount}",
-                orderNo,
-                totalAmount
-            );
-
-            // 重新查询，一次性加载所有关联数据
-            // AsNoTracking 避免跟已追踪的实体冲突
-            order = await _db
-                .InboundOrders.AsNoTracking()
-                .Include(o => o.Supplier)
-                .Include(o => o.Operator)
-                .Include(o => o.Items)
-                    .ThenInclude(i => i.Product)
-                .FirstAsync(o => o.Id == order.Id);
-
-            return new InboundOrderDto
+            catch
             {
-                Id = order.Id,
-                OrderNo = order.OrderNo,
-                SupplierId = order.SupplierId,
-                SupplierName = order.Supplier?.Name ?? "",
-                OperatorId = order.OperatorId,
-                OperatorName = order.Operator?.DisplayName ?? "",
-                TotalAmount = order.TotalAmount,
-                Remark = order.Remark,
-                CreatedAt = order.CreatedAt,
-                Items = order
-                    .Items.Select(i => new InboundItemDto
-                    {
-                        Id = i.Id,
-                        ProductId = i.ProductId,
-                        ProductName = i.Product?.Name ?? "",
-                        ProductSpec = i.Product?.Spec ?? "",
-                        Quantity = i.Quantity,
-                        UnitPrice = i.UnitPrice,
-                    })
-                    .ToList(),
-            };
+                await tx.RollbackAsync();
+                throw;
+            }
         }
 
         public async Task<PagedResult<InboundOrderDto>> GetAll(
@@ -145,9 +162,9 @@ namespace WiseWMS.Application.Services
                     Id = o.Id,
                     OrderNo = o.OrderNo,
                     SupplierId = o.SupplierId,
-                    SupplierName = o.Supplier.Name,
+                    SupplierName = o.Supplier != null ? o.Supplier.Name : "",
                     OperatorId = o.OperatorId,
-                    OperatorName = o.Operator.DisplayName,
+                    OperatorName = o.Operator != null ? o.Operator.DisplayName : "",
                     TotalAmount = o.TotalAmount,
                     Remark = o.Remark,
                     CreatedAt = o.CreatedAt,
@@ -180,9 +197,9 @@ namespace WiseWMS.Application.Services
                 Id = order.Id,
                 OrderNo = order.OrderNo,
                 SupplierId = order.SupplierId,
-                SupplierName = order.Supplier?.Name ?? "",
+                SupplierName = order.Supplier != null ? order.Supplier.Name : "",
                 OperatorId = order.OperatorId,
-                OperatorName = order.Operator?.DisplayName ?? "",
+                OperatorName = order.Operator != null ? order.Operator.DisplayName : "",
                 TotalAmount = order.TotalAmount,
                 Remark = order.Remark,
                 CreatedAt = order.CreatedAt,
@@ -191,8 +208,8 @@ namespace WiseWMS.Application.Services
                     {
                         Id = i.Id,
                         ProductId = i.ProductId,
-                        ProductName = i.Product?.Name ?? "",
-                        ProductSpec = i.Product?.Spec ?? "",
+                        ProductName = i.Product != null ? i.Product.Name : "",
+                        ProductSpec = i.Product != null ? i.Product.Spec : "",
                         Quantity = i.Quantity,
                         UnitPrice = i.UnitPrice,
                     })

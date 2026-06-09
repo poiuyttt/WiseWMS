@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -25,104 +25,124 @@ namespace WiseWMS.Application.Services
 
         public async Task<OutboundOrderDto> Create(CreateOutboundDto dto, int operatorId)
         {
-            string today = DateTime.UtcNow.ToString("yyyyMMdd");
+            using var tx = await _db.Database.BeginTransactionAsync();
 
-            int count = await _db.OutboundOrders.CountAsync(o =>
-                o.OrderNo.StartsWith($"OUT-{today}")
-            );
-            string orderNo = $"OUT-{today}-{count + 1:D4}";
-
-            decimal totalAmount = dto.Items.Sum(o => o.Quantity * o.SalePrice);
-
-            var order = new OutboundOrder
+            try
             {
-                OrderNo = orderNo,
-                CustomerId = dto.CustomerId,
-                OperatorId = operatorId,
-                TotalAmount = totalAmount,
-                Remark = dto.Remark,
-                CreatedAt = DateTime.UtcNow,
-            };
+                string today = DateTime.UtcNow.ToString("yyyyMMdd");
 
-            _db.OutboundOrders.Add(order);
+                int count = await _db.OutboundOrders.CountAsync(o =>
+                    o.CreatedAt >= DateTime.UtcNow.Date
+                );
+                string orderNo = $"OUT-{today}-{count + 1:D4}";
 
-            foreach (var item in dto.Items)
-            {
-                var product = await _db.Products.FindAsync(item.ProductId);
-                if (product == null)
+                decimal totalAmount = dto.Items.Sum(o => o.Quantity * o.SalePrice);
+
+                var order = new OutboundOrder
                 {
-                    _logger.LogWarning("出库失败：商品不存在，ID={ProductId}", item.ProductId);
-                    throw new InvalidOperationException($"商品不存在，ID={item.ProductId}");
+                    OrderNo = orderNo,
+                    CustomerId = dto.CustomerId,
+                    OperatorId = operatorId,
+                    TotalAmount = totalAmount,
+                    Remark = dto.Remark,
+                    CreatedAt = DateTime.UtcNow,
+                };
+
+                _db.OutboundOrders.Add(order);
+
+                foreach (var item in dto.Items)
+                {
+                    var product = await _db.Products.FirstOrDefaultAsync(p =>
+                        p.Id == item.ProductId
+                    );
+
+                    if (product == null)
+                    {
+                        _logger.LogWarning("出库失败：商品不存在，ID={ProductId}", item.ProductId);
+                        throw new InvalidOperationException($"商品不存在，ID={item.ProductId}");
+                    }
+
+                    if (product.Stock < item.Quantity)
+                    {
+                        _logger.LogWarning(
+                            "出库失败：商品库存不足，ID={ProductId}",
+                            item.ProductId
+                        );
+                        throw new InvalidOperationException($"商品库存不足，ID={item.ProductId}");
+                    }
+
+                    order.Items.Add(
+                        new OutboundItem
+                        {
+                            ProductId = item.ProductId,
+                            Quantity = item.Quantity,
+                            SalePrice = item.SalePrice,
+                        }
+                    );
+
+                    int stockBefore = product.Stock;
+                    product.Stock -= item.Quantity;
+                    _db.InventoryTransactions.Add(
+                        new InventoryTransaction
+                        {
+                            ProductId = item.ProductId,
+                            Type = "Out",
+                            Quantity = item.Quantity,
+                            StockBefore = stockBefore,
+                            StockAfter = product.Stock,
+                            OrderNo = orderNo,
+                            Remark = $"出库单 {orderNo}",
+                            CreatedAt = DateTime.UtcNow,
+                            OperatorId = operatorId,
+                        }
+                    );
                 }
 
-                if (product.Stock < item.Quantity)
+                await _db.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                _logger.LogInformation(
+                    "出库单创建成功：单号={OrderNo}, 金额={TotalAmount}",
+                    orderNo,
+                    totalAmount
+                );
+
+                order = await _db
+                    .OutboundOrders.AsNoTracking()
+                    .Include(o => o.Customer)
+                    .Include(o => o.Operator)
+                    .Include(o => o.Items)
+                        .ThenInclude(i => i.Product)
+                    .FirstAsync(o => o.Id == order.Id);
+
+                return new OutboundOrderDto
                 {
-                    _logger.LogWarning("出库失败：商品库存不足，ID={ProductId}", item.ProductId);
-                    throw new InvalidOperationException($"商品库存不足，ID={item.ProductId}");
-                }
-
-                order.Items.Add(
-                    new OutboundItem
-                    {
-                        ProductId = item.ProductId,
-                        Quantity = item.Quantity,
-                        SalePrice = item.SalePrice,
-                    }
-                );
-
-                int stockBefore = product.Stock;
-                product.Stock -= item.Quantity;
-                _db.InventoryTransactions.Add(
-                    new InventoryTransaction
-                    {
-                        ProductId = item.ProductId,
-                        Type = "Out",
-                        Quantity = item.Quantity,
-                        StockBefore = stockBefore,
-                        StockAfter = product.Stock,
-                        OrderNo = orderNo,
-                        Remark = $"出库单 {orderNo}",
-                        CreatedAt = DateTime.UtcNow,
-                        OperatorId = operatorId,
-                    }
-                );
+                    Id = order.Id,
+                    OrderNo = order.OrderNo,
+                    CustomerId = order.CustomerId,
+                    CustomerName = order.Customer != null ? order.Customer.Name : "",
+                    OperatorId = order.OperatorId,
+                    OperatorName = order.Operator != null ? order.Operator.DisplayName : "",
+                    TotalAmount = order.TotalAmount,
+                    Remark = order.Remark,
+                    CreatedAt = order.CreatedAt,
+                    Items = order
+                        .Items.Select(i => new OutboundItemDto
+                        {
+                            Id = i.Id,
+                            ProductId = i.ProductId,
+                            Quantity = i.Quantity,
+                            SalePrice = i.SalePrice,
+                            ProductName = i.Product != null ? i.Product.Name : "",
+                        })
+                        .ToList(),
+                };
             }
-            await _db.SaveChangesAsync();
-
-            _logger.LogInformation(
-                "出库单创建成功：单号={OrderNo}, 金额={TotalAmount}",
-                orderNo,
-                totalAmount
-            );
-
-            order = await _db
-                .OutboundOrders.AsNoTracking()
-                .Include(o => o.Customer)
-                .Include(o => o.Operator)
-                .Include(o => o.Items)
-                    .ThenInclude(i => i.Product)
-                .FirstAsync(o => o.Id == order.Id);
-
-            return new OutboundOrderDto
+            catch
             {
-                Id = order.Id,
-                OrderNo = order.OrderNo,
-                CustomerId = order.CustomerId,
-                OperatorId = order.OperatorId,
-                TotalAmount = order.TotalAmount,
-                Remark = order.Remark,
-                CreatedAt = order.CreatedAt,
-                Items = order
-                    .Items.Select(i => new OutboundItemDto
-                    {
-                        Id = i.Id,
-                        ProductId = i.ProductId,
-                        Quantity = i.Quantity,
-                        SalePrice = i.SalePrice,
-                        ProductName = i.Product?.Name ?? "",
-                    })
-                    .ToList(),
-            };
+                await tx.RollbackAsync();
+                throw;
+            }
         }
 
         public async Task<PagedResult<OutboundOrderDto>> GetAll(
@@ -150,9 +170,9 @@ namespace WiseWMS.Application.Services
                     Id = o.Id,
                     OrderNo = o.OrderNo,
                     CustomerId = o.CustomerId,
-                    CustomerName = o.Customer.Name,
+                    CustomerName = o.Customer != null ? o.Customer.Name : "",
                     OperatorId = o.OperatorId,
-                    OperatorName = o.Operator.DisplayName,
+                    OperatorName = o.Operator != null ? o.Operator.DisplayName : "",
                     TotalAmount = o.TotalAmount,
                     Remark = o.Remark,
                     CreatedAt = o.CreatedAt,
@@ -185,9 +205,9 @@ namespace WiseWMS.Application.Services
                 Id = order.Id,
                 OrderNo = order.OrderNo,
                 CustomerId = order.CustomerId,
-                CustomerName = order.Customer?.Name ?? "",
+                CustomerName = order.Customer != null ? order.Customer.Name : "",
                 OperatorId = order.OperatorId,
-                OperatorName = order.Operator?.DisplayName ?? "",
+                OperatorName = order.Operator != null ? order.Operator.DisplayName : "",
                 TotalAmount = order.TotalAmount,
                 Remark = order.Remark,
                 CreatedAt = order.CreatedAt,
@@ -196,8 +216,8 @@ namespace WiseWMS.Application.Services
                     {
                         Id = i.Id,
                         ProductId = i.ProductId,
-                        ProductName = i.Product?.Name ?? "",
-                        ProductSpec = i.Product?.Spec ?? "",
+                        ProductName = i.Product != null ? i.Product.Name : "",
+                        ProductSpec = i.Product != null ? i.Product.Spec : "",
                         Quantity = i.Quantity,
                         SalePrice = i.SalePrice,
                     })

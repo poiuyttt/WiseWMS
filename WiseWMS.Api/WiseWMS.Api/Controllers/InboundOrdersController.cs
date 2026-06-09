@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using WiseWMS.Application.DTOs;
 using WiseWMS.Application.Services.Interfaces;
 
@@ -6,6 +7,7 @@ namespace WiseWMS.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class InboundOrdersController : ControllerBase
     {
         private readonly IInboundService _inboundService;

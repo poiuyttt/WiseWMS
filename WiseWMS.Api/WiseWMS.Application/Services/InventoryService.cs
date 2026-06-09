@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -44,14 +44,14 @@ namespace WiseWMS.Application.Services
                 {
                     Id = q.Id,
                     ProductId = q.ProductId,
-                    ProductName = q.Product.Name,
-                    ProductSpec = q.Product.Spec,
+                    ProductName = q.Product != null ? q.Product.Name : "",
+                    ProductSpec = q.Product != null ? q.Product.Spec : "",
                     Type = q.Type,
                     Quantity = q.Quantity,
                     StockBefore = q.StockBefore,
                     StockAfter = q.StockAfter,
                     OrderNo = q.OrderNo,
-                    OperatorName = q.Operator.DisplayName,
+                    OperatorName = q.Operator != null ? q.Operator.DisplayName : "",
                     CreatedAt = q.CreatedAt,
                 })
                 .ToListAsync();
@@ -77,7 +77,7 @@ namespace WiseWMS.Application.Services
                     Spec = p.Spec,
                     Unit = p.Unit,
                     CategoryId = p.CategoryId,
-                    CategoryName = p.Category.Name,
+                    CategoryName = p.Category != null ? p.Category.Name : "",
                     Price = p.Price,
                     Stock = p.Stock,
                     MinStock = p.MinStock,

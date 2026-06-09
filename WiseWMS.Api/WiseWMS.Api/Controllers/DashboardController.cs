@@ -1,39 +1,26 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using WiseWMS.Application.DTOs;
-using WiseWMS.Infrastructure.Data;
+using WiseWMS.Application.Services.Interfaces;
 
 namespace WiseWMS.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class DashboardController : ControllerBase
     {
-        private readonly AppDbContext _db;
+        private readonly IDashboardService _dashboardService;
 
-        public DashboardController(AppDbContext db)
+        public DashboardController(IDashboardService dashboardService)
         {
-            _db = db;
+            _dashboardService = dashboardService;
         }
 
         [HttpGet]
         public async Task<IActionResult> GetDashboard()
         {
-            string today = DateTime.UtcNow.ToString("yyyyMMdd");
-
-            var data = new DashboardDto
-            {
-                TotalProducts = await _db.Products.CountAsync(),
-                TotalStock = await _db.Products.SumAsync(p => p.Stock),
-                TodayInbound = await _db.InboundOrders.CountAsync(o =>
-                    o.OrderNo.StartsWith($"IN-{today}")
-                ),
-                TodayOutbound = await _db.OutboundOrders.CountAsync(o =>
-                    o.OrderNo.StartsWith($"OUT-{today}")
-                ),
-                LowStockCount = await _db.Products.CountAsync(p => p.Stock <= p.MinStock),
-            };
-
+            DashboardDto data = await _dashboardService.GetDashboard();
             return Ok(data);
         }
     }

@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using ClosedXML.Excel;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using WiseWMS.Application.DTOs;
 using WiseWMS.Application.Services.Interfaces;
 
@@ -6,6 +8,7 @@ namespace WiseWMS.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class ProductsController : ControllerBase
     {
         private readonly IProductService _productService;
@@ -68,7 +71,7 @@ namespace WiseWMS.Api.Controllers
         {
             var products = await _productService.GetAll();
 
-            var workbook = new ClosedXML.Excel.XLWorkbook();
+            using var workbook = new XLWorkbook();
             var sheet = workbook.Worksheets.Add("商品列表");
 
             sheet.Cell(1, 1).Value = "商品名称";
@@ -80,9 +83,10 @@ namespace WiseWMS.Api.Controllers
             sheet.Cell(1, 7).Value = "预警线";
             sheet.Cell(1, 8).Value = "创建时间";
 
-            int row = 2;
-            foreach (var p in products)
+            for (int i = 0; i < products.Count; i++)
             {
+                var p = products[i];
+                int row = i + 2;
                 sheet.Cell(row, 1).Value = p.Name;
                 sheet.Cell(row, 2).Value = p.Spec;
                 sheet.Cell(row, 3).Value = p.Unit;
@@ -90,15 +94,13 @@ namespace WiseWMS.Api.Controllers
                 sheet.Cell(row, 5).Value = p.Price;
                 sheet.Cell(row, 6).Value = p.Stock;
                 sheet.Cell(row, 7).Value = p.MinStock;
-                sheet.Cell(row, 8).Value = p.CreatedAt.ToString("yyyy-MM-dd");
-                row++;
+                sheet.Cell(row, 8).Value = p.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss");
             }
 
-            sheet.Columns().Width = 15;
+            sheet.Columns().AdjustToContents();
 
             using var stream = new MemoryStream();
             workbook.SaveAs(stream);
-            stream.Position = 0;
             return File(
                 stream.ToArray(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

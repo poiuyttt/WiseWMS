@@ -48,7 +48,7 @@ namespace WiseWMS.Application.Services
                     Spec = product.Spec,
                     Unit = product.Unit,
                     CategoryId = product.CategoryId,
-                    CategoryName = product.Category.Name,
+                    CategoryName = product.Category != null ? product.Category.Name : "",
                     Price = product.Price,
                     Stock = product.Stock,
                     MinStock = product.MinStock,
@@ -72,6 +72,7 @@ namespace WiseWMS.Application.Services
 
             return await _db
                 .Products.Include(p => p.Category)
+                .OrderByDescending(p => p.CreatedAt)
                 .Select(p => new ProductDto
                 {
                     Id = p.Id,
@@ -79,7 +80,7 @@ namespace WiseWMS.Application.Services
                     Spec = p.Spec,
                     Unit = p.Unit,
                     CategoryId = p.CategoryId,
-                    CategoryName = p.Category.Name,
+                    CategoryName = p.Category != null ? p.Category.Name : "",
                     Price = p.Price,
                     Stock = p.Stock,
                     MinStock = p.MinStock,
@@ -110,7 +111,7 @@ namespace WiseWMS.Application.Services
                 Spec = product.Spec,
                 Unit = product.Unit,
                 CategoryId = product.CategoryId,
-                CategoryName = product.Category.Name,
+                CategoryName = product.Category != null ? product.Category.Name : "",
                 Price = product.Price,
                 Stock = product.Stock,
                 MinStock = product.MinStock,
@@ -164,7 +165,7 @@ namespace WiseWMS.Application.Services
                 Spec = product.Spec,
                 Unit = product.Unit,
                 CategoryId = product.CategoryId,
-                CategoryName = product.Category.Name,
+                CategoryName = product.Category != null ? product.Category.Name : "",
                 Price = product.Price,
                 Stock = product.Stock,
                 MinStock = product.MinStock,
@@ -203,7 +204,7 @@ namespace WiseWMS.Application.Services
                 Spec = product.Spec,
                 Unit = product.Unit,
                 CategoryId = product.CategoryId,
-                CategoryName = product.Category.Name,
+                CategoryName = product.Category != null ? product.Category.Name : "",
                 Price = product.Price,
                 Stock = product.Stock,
                 MinStock = product.MinStock,
