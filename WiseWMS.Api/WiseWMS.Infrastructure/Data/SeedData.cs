@@ -6,6 +6,20 @@ namespace WiseWMS.Infrastructure.Data
     {
         public static void Initialize(AppDbContext db)
         {
+            if (!db.Customers.Any())
+            {
+                db.Customers.Add(
+                    new Customer
+                    {
+                        Name = "默认客户",
+                        Contact = "管理员",
+                        Phone = "13800000000",
+                        Address = "默认地址",
+                    }
+                );
+                db.SaveChanges();
+            }
+
             if (!db.Suppliers.Any())
             {
                 db.Suppliers.Add(
