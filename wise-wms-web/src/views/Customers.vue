@@ -13,6 +13,7 @@ const items = ref([]);
 const total = ref(0);
 const page = ref(1);
 const pageSize = ref(10);
+const role = localStorage.getItem("role");
 
 const showDialog = ref(false);
 const editId = ref(0);
@@ -97,7 +98,11 @@ watch([keyword, page], load);
       <el-table-column label="操作" width="150">
         <template #default="{ row }">
           <el-button size="small" @click="edit(row)">编辑</el-button>
-          <el-button size="small" type="danger" @click="del(row.id)"
+          <el-button
+            v-if="role === 'Admin'"
+            size="small"
+            type="danger"
+            @click="del(row.id)"
             >删除</el-button
           >
         </template>

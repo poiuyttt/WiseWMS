@@ -1,8 +1,11 @@
 <script setup>
 import { useRoute, useRouter } from "vue-router";
+import { computed } from "vue";
 
 const route = useRoute();
 const router = useRouter();
+const displayName = computed(() => localStorage.getItem("displayName") || "");
+const role = computed(() => localStorage.getItem("role") || "");
 
 function logout() {
   localStorage.clear();
@@ -11,12 +14,20 @@ function logout() {
 </script>
 <template>
   <el-container class="layout">
-    <el-aside width="220px">
-      <el-menu
-        :router="true"
-        :default-active="route.path"
-        style="height: 100vh"
+    <el-aside width="220px"
+      ><div
+        style="
+          padding: 20px;
+          border-bottom: 1px solid #dcdfe6;
+          text-align: center;
+        "
       >
+        <strong>{{ displayName }}</strong>
+        <el-tag size="small" :type="role === 'Admin' ? 'danger' : 'info'">{{
+          role
+        }}</el-tag>
+      </div>
+      <el-menu :router="true" :default-active="route.path">
         <el-menu-item index="/dashboard">📊 Dashboard</el-menu-item>
         <el-menu-item index="/products">📦 商品管理</el-menu-item>
         <el-menu-item index="/inbound">📥 入库单</el-menu-item>
@@ -34,7 +45,8 @@ function logout() {
 </template>
 <style scoped>
 .layout {
-  height: 100vh;
+  height: 100%;
+  overflow: auto;
 }
 .el-main {
   background: #f5f7fa;

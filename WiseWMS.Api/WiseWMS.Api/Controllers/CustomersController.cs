@@ -56,6 +56,7 @@ namespace WiseWMS.Api.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int id)
         {
             var result = await _customerService.Delete(id);
