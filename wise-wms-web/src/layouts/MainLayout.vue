@@ -45,7 +45,7 @@ function logout() {
 </template>
 <style scoped>
 .layout {
-  height: 100%;
+  height: 100vh;
   overflow: auto;
 }
 .el-main {

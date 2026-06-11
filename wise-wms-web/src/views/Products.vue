@@ -6,6 +6,7 @@ import {
   deleteProduct,
   createProduct,
   updateProduct,
+  exportProducts,
 } from "@/api/product";
 
 const keyword = ref("");
@@ -91,6 +92,16 @@ const rules = {
     { required: true, message: "请选择商品分类", trigger: "change" },
   ],
 };
+
+async function handleExport() {
+  const blob = await exportProducts();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "商品列表.xlsx";
+  a.click();
+  URL.revokeObjectURL(url);
+}
 </script>
 <template>
   <div>
@@ -103,6 +114,7 @@ const rules = {
         ></el-input>
       </el-col>
       <el-col :span="12" style="text-align: right">
+        <el-button @click="handleExport">导出 Excel</el-button>
         <el-button
           type="primary"
           @click="

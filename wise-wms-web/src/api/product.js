@@ -19,3 +19,7 @@ export function updateProduct(id, data) {
 export function deleteProduct(id) {
   return request.delete(`/api/Products/${id}`);
 }
+
+export function exportProducts() {
+  return request.get("/api/Products/export", { responseType: "blob" });
+}
