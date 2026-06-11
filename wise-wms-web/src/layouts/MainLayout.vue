@@ -21,6 +21,8 @@ function logout() {
         <el-menu-item index="/products">📦 商品管理</el-menu-item>
         <el-menu-item index="/inbound">📥 入库单</el-menu-item>
         <el-menu-item index="/outbound">📤 出库单</el-menu-item>
+        <el-menu-item index="/suppliers">🏭 供应商管理</el-menu-item>
+        <el-menu-item index="/customers">👥 客户管理</el-menu-item>
         <el-menu-item index="/inventory">🔍 库存查询</el-menu-item>
         <el-menu-item index="/login" @click="logout">🚪 退出</el-menu-item>
       </el-menu>

@@ -14,6 +14,8 @@ const routes = [
         component: () => import("@/views/OutboundOrders.vue"),
       },
       { path: "inventory", component: () => import("@/views/Inventory.vue") },
+      { path: "suppliers", component: () => import("@/views/Suppliers.vue") },
+      { path: "customers", component: () => import("@/views/Customers.vue") },
     ],
   },
   { path: "/login", component: () => import("@/views/Login.vue") },
