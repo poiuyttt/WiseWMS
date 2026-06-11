@@ -1,0 +1,39 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "WiseWMS_Pass123"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+
+  api:
+    build:
+      context: ./WiseWMS.Api
+      dockerfile: Dockerfile
+    ports:
+      - "7176:8080"
+    environment:
+      ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=WiseWMS;User Id=sa;Password=WiseWMS_Pass123;TrustServerCertificate=True;"
+      Jwt__Key: "WiseWMS_SuperSecretKey_2026_MustBeAtLeast32Chars!"
+      Jwt__Issuer: "WiseWMS"
+      Jwt__Audience: "WiseWMS"
+      Jwt__ExpireMinutes: "120"
+    depends_on:
+      - sqlserver
+
+  web:
+    build:
+      context: ./wise-wms-web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: "http://localhost:7176"
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+volumes:
+  sqlserver_data:
