@@ -53,6 +53,11 @@ function resetForm() {
 }
 
 async function save() {
+  try {
+    await formRef.value.validate();
+  } catch {
+    return;
+  }
   if (editId.value) {
     await updateProduct(editId.value, form);
     ElMessage.success("修改成功");
@@ -77,6 +82,15 @@ async function load() {
 onMounted(load);
 
 watch([keyword, page], load);
+
+const formRef = ref(null);
+
+const rules = {
+  name: [{ required: true, message: "请输入商品名称", trigger: "change" }],
+  categoryId: [
+    { required: true, message: "请选择商品分类", trigger: "change" },
+  ],
+};
 </script>
 <template>
   <div>
@@ -128,8 +142,8 @@ watch([keyword, page], load);
       :title="editId ? '编辑商品' : '新增商品'"
       width="500px"
     >
-      <el-form :model="form" label-width="80px">
-        <el-form-item label="商品名">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
+        <el-form-item label="商品名" prop="name">
           <el-input v-model="form.name" />
         </el-form-item>
         <el-form-item label="规格">
@@ -138,7 +152,7 @@ watch([keyword, page], load);
         <el-form-item label="单位">
           <el-input v-model="form.unit" />
         </el-form-item>
-        <el-form-item label="分类">
+        <el-form-item label="分类" prop="categoryId">
           <el-select v-model="form.categoryId" placeholder="请选择">
             <el-option label="食品饮料" :value="1" />
             <el-option label="日用品" :value="2" />

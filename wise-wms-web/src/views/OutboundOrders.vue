@@ -64,9 +64,13 @@ function resetCreate() {
 }
 
 async function submitCreate() {
-  if (!createForm.value.customerId) return ElMessage.warning("请选择客户");
   if (!createForm.value.items.length)
     return ElMessage.warning("请添加至少一个商品");
+  try {
+    await formRef.value.validate();
+  } catch {
+    return;
+  }
   submitting.value = true;
   try {
     await createOutboundOrder(createForm.value);
@@ -80,11 +84,18 @@ async function submitCreate() {
 
 const showDetail = ref(false);
 const detail = ref({});
+
 async function viewDetail(row) {
   const res = await getOutboundOrder(row.id);
   detail.value = res;
   showDetail.value = true;
 }
+
+const formRef = ref(null);
+
+const rules = {
+  customerId: [{ required: true, message: "请选择客户", trigger: "change" }],
+};
 </script>
 <template>
   <div>
@@ -139,8 +150,13 @@ async function viewDetail(row) {
       width="700px"
       @close="resetCreate"
     >
-      <el-form :model="createForm" label-width="80">
-        <el-form-item label="客户">
+      <el-form
+        ref="formRef"
+        :model="createForm"
+        :rules="rules"
+        label-width="80px"
+      >
+        <el-form-item label="客户" prop="customerId">
           <el-select
             v-model="createForm.customerId"
             placeholder="选择客户"

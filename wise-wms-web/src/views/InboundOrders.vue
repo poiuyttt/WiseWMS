@@ -68,9 +68,13 @@ function resetCreate() {
 }
 
 async function submitCreate() {
-  if (!createForm.value.supplierId) return ElMessage.warning("请选择供应商");
   if (!createForm.value.items.length)
     return ElMessage.warning("请添加至少一个商品");
+  try {
+    await formRef.value.validate();
+  } catch {
+    return;
+  }
   submitting.value = true;
   try {
     await createInboundOrder(createForm.value);
@@ -84,11 +88,18 @@ async function submitCreate() {
 
 const showDetail = ref(false);
 const detail = ref({});
+
 async function viewDetail(row) {
   const res = await getInboundOrder(row.id);
   detail.value = res;
   showDetail.value = true;
 }
+
+const formRef = ref(null);
+
+const rules = {
+  supplierId: [{ required: true, message: "请选择供应商", trigger: "change" }],
+};
 </script>
 <template>
   <div>
@@ -147,8 +158,13 @@ async function viewDetail(row) {
       width="700px"
       @close="resetCreate"
     >
-      <el-form :model="createForm" label-width="80">
-        <el-form-item label="供应商">
+      <el-form
+        ref="formRef"
+        :model="createForm"
+        :rules="rules"
+        label-width="80px"
+      >
+        <el-form-item label="供应商" prop="supplierId">
           <el-select
             v-model="createForm.supplierId"
             placeholder="选择供应商"

@@ -42,6 +42,11 @@ function resetForm() {
 }
 
 async function save() {
+  try {
+    await formRef.value.validate();
+  } catch {
+    return;
+  }
   if (editId.value) {
     await updateCustomer(editId.value, form);
     ElMessage.success("修改成功");
@@ -65,6 +70,12 @@ async function load() {
 
 onMounted(load);
 watch([keyword, page], load);
+
+const formRef = ref(null);
+
+const rules = {
+  name: [{ required: true, message: "请输入名称", trigger: "change" }],
+};
 </script>
 <template>
   <div>
@@ -114,8 +125,8 @@ watch([keyword, page], load);
       :title="editId ? '编辑客户' : '新增客户'"
       width="500px"
     >
-      <el-form :model="form" label-width="80px">
-        <el-form-item label="名称"
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
+        <el-form-item label="名称" prop="name"
           ><el-input v-model="form.name"
         /></el-form-item>
         <el-form-item label="联系人"

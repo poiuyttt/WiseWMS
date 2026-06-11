@@ -13,8 +13,9 @@ const form = reactive({
 });
 
 async function handleLogin() {
-  if (!form.username || !form.password) {
-    ElMessage.error("请输入用户名和密码");
+  try {
+    await formRef.value.validate();
+  } catch {
     return;
   }
   loading.value = true;
@@ -30,20 +31,31 @@ async function handleLogin() {
     loading.value = false;
   }
 }
+
+const formRef = ref(null);
+
+const rules = {
+  username: [{ required: true, message: "请输入用户名", trigger: "blur" }],
+  password: [{ required: true, message: "请输入密码", trigger: "blur" }],
+};
 </script>
 <template>
   <div class="login-container">
     <el-card class="login-card">
       <h2>WiseWMS 登录</h2>
-      <el-form :model="form" label-width="80px">
-        <el-form-item label="用户名">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
+        <el-form-item label="用户名" prop="username">
           <el-input
             v-model="form.username"
             placeholder="请输入用户名"
           ></el-input>
         </el-form-item>
-        <el-form-item label="密码">
-          <el-input v-model="form.password" placeholder="请输入密码"></el-input>
+        <el-form-item label="密码" prop="password">
+          <el-input
+            v-model="form.password"
+            placeholder="请输入密码"
+            type="password"
+          ></el-input>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleLogin" :loading="loading"
