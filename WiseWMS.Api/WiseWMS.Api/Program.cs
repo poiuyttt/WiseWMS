@@ -2,12 +2,22 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Serilog;
 using WiseWMS.Api.Middleware;
 using WiseWMS.Application.Services;
 using WiseWMS.Application.Services.Interfaces;
 using WiseWMS.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, config) =>
+    config.ReadFrom.Configuration(context.Configuration)
+          .Enrich.FromLogContext()
+          .WriteTo.Console()
+          .WriteTo.File("logs/wisewms-.log", rollingInterval: RollingInterval.Day)
+);
+
+builder.Services.AddHealthChecks();
 
 // Add services to the container.
 
@@ -113,5 +123,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.MapHealthChecks("/health");
 
 app.Run();

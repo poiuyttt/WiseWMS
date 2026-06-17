@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/WiseWMS.UnitTests/WiseWMS.UnitTests.csproj" />
+  </Folder>
   <Project Path="WiseWMS.Api/WiseWMS.Api.csproj" />
   <Project Path="WiseWMS.Application/WiseWMS.Application.csproj" />
   <Project Path="WiseWMS.Infrastructure/WiseWMS.Infrastructure.csproj" />

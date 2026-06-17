@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# opencode skill cache
+.opencode/
+
 # User-specific files
 *.rsuser
 *.suo
