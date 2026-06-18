@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using System.Text;
 using Asp.Versioning;
+using AutoMapper;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -25,6 +26,11 @@ builder.Host.UseSerilog((context, config) =>
 builder.Services.AddHealthChecks();
 
 builder.Services.AddValidatorsFromAssemblyContaining<WiseWMS.Application.DTOs.CreateProductDto>();
+builder.Services.AddSingleton<IMapper>(sp =>
+{
+    var config = new MapperConfiguration(cfg => cfg.AddProfile<WiseWMS.Application.Profiles.MappingProfile>());
+    return config.CreateMapper();
+});
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -53,6 +59,9 @@ builder.Services.AddCors(options =>
         policy.WithOrigins("http://localhost:5173").AllowAnyHeader().AllowAnyMethod();
     });
 });
+var jwtKey = builder.Configuration["Jwt:Key"]
+    ?? throw new InvalidOperationException("JWT Key is not configured. Set environment variable 'Jwt__Key' or use 'dotnet user-secrets set Jwt:Key ...'.");
+
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddControllers();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -77,7 +86,7 @@ builder
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)
+                Encoding.UTF8.GetBytes(jwtKey)
             ),
         };
     });
@@ -128,6 +137,15 @@ app.UseMiddleware<ExceptionMiddleware>();
 
 app.UseRateLimiter();
 
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["X-XSS-Protection"] = "1; mode=block";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    await next();
+});
+
 //手动从 DI 容器里拿服务
 using (var scope = app.Services.CreateScope())
 {
@@ -136,6 +154,11 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

@@ -1,0 +1,14 @@
+**/.vs/
+**/.git/
+**/.gitignore
+**/bin/
+**/obj/
+**/node_modules/
+tests/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.git/
+.gitignore
