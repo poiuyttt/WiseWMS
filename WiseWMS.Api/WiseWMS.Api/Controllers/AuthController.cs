@@ -1,11 +1,15 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Asp.Versioning;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using WiseWMS.Application.DTOs;
 using WiseWMS.Application.Services.Interfaces;
 
 namespace WiseWMS.Api.Controllers
 {
     [ApiController]
+    [ApiVersion("1.0")]
     [Route("api/[controller]")]
+    [EnableRateLimiting("LoginPolicy")]
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;

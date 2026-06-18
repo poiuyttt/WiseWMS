@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using WiseWMS.Application.Services.Interfaces;
@@ -5,6 +6,7 @@ using WiseWMS.Application.Services.Interfaces;
 namespace WiseWMS.Api.Controllers
 {
     [ApiController]
+    [ApiVersion("1.0")]
     [Route("api/[controller]")]
     [Authorize]
     public class InventoryController : ControllerBase
