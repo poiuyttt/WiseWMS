@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Moq;
 using WiseWMS.Application.DTOs;
+using WiseWMS.Application.Publishers;
 using WiseWMS.Application.Services;
 using WiseWMS.Infrastructure.Data;
 using WiseWMS.Infrastructure.Entities;
@@ -23,7 +24,13 @@ public class OutboundServiceTests
     private OutboundService CreateService(AppDbContext db)
     {
         var logger = Mock.Of<ILogger<OutboundService>>();
-        return new OutboundService(db, logger);
+        var publisherMock = new Mock<MessagePublisher>(
+            null!, Mock.Of<ILogger<MessagePublisher>>()
+        );
+        publisherMock
+            .Setup(p => p.PublishInventoryChange(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>()))
+            .Returns(Task.CompletedTask);
+        return new OutboundService(db, logger, publisherMock.Object);
     }
 
     private async Task SeedProduct(AppDbContext db, int id, int stock = 10)

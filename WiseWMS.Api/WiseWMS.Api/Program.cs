@@ -1,5 +1,5 @@
-using System.Threading.RateLimiting;
 using System.Text;
+using System.Threading.RateLimiting;
 using Asp.Versioning;
 using AutoMapper;
 using FluentValidation;
@@ -10,17 +10,21 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using WiseWMS.Api.Middleware;
+using WiseWMS.Application.Publishers;
 using WiseWMS.Application.Services;
 using WiseWMS.Application.Services.Interfaces;
 using WiseWMS.Infrastructure.Data;
+using WiseWMS.Infrastructure.MessageQueue;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.UseSerilog((context, config) =>
-    config.ReadFrom.Configuration(context.Configuration)
-          .Enrich.FromLogContext()
-          .WriteTo.Console()
-          .WriteTo.File("logs/wisewms-.log", rollingInterval: RollingInterval.Day)
+builder.Host.UseSerilog(
+    (context, config) =>
+        config
+            .ReadFrom.Configuration(context.Configuration)
+            .Enrich.FromLogContext()
+            .WriteTo.Console()
+            .WriteTo.File("logs/wisewms-.log", rollingInterval: RollingInterval.Day)
 );
 
 builder.Services.AddHealthChecks();
@@ -28,19 +32,24 @@ builder.Services.AddHealthChecks();
 builder.Services.AddValidatorsFromAssemblyContaining<WiseWMS.Application.DTOs.CreateProductDto>();
 builder.Services.AddSingleton<IMapper>(sp =>
 {
-    var config = new MapperConfiguration(cfg => cfg.AddProfile<WiseWMS.Application.Profiles.MappingProfile>());
+    var config = new MapperConfiguration(cfg =>
+        cfg.AddProfile<WiseWMS.Application.Profiles.MappingProfile>()
+    );
     return config.CreateMapper();
 });
 
 builder.Services.AddRateLimiter(options =>
 {
-    options.AddFixedWindowLimiter("LoginPolicy", config =>
-    {
-        config.PermitLimit = 5;
-        config.Window = TimeSpan.FromMinutes(1);
-        config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        config.QueueLimit = 0;
-    });
+    options.AddFixedWindowLimiter(
+        "LoginPolicy",
+        config =>
+        {
+            config.PermitLimit = 5;
+            config.Window = TimeSpan.FromMinutes(1);
+            config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+            config.QueueLimit = 0;
+        }
+    );
 });
 
 builder.Services.AddApiVersioning(options =>
@@ -59,8 +68,11 @@ builder.Services.AddCors(options =>
         policy.WithOrigins("http://localhost:5173").AllowAnyHeader().AllowAnyMethod();
     });
 });
-var jwtKey = builder.Configuration["Jwt:Key"]
-    ?? throw new InvalidOperationException("JWT Key is not configured. Set environment variable 'Jwt__Key' or use 'dotnet user-secrets set Jwt:Key ...'.");
+var jwtKey =
+    builder.Configuration["Jwt:Key"]
+    ?? throw new InvalidOperationException(
+        "JWT Key is not configured. Set environment variable 'Jwt__Key' or use 'dotnet user-secrets set Jwt:Key ...'."
+    );
 
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddControllers();
@@ -72,6 +84,10 @@ builder.Services.AddScoped<IInboundService, InboundService>();
 builder.Services.AddScoped<IOutboundService, OutboundService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddSingleton(sp => new RabbitMqConnection(
+    builder.Configuration.GetConnectionString("RabbitMQ") ?? "localhost"
+));
+builder.Services.AddScoped<MessagePublisher>();
 
 builder
     .Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -85,9 +101,7 @@ builder
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtKey)
-            ),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
         };
     });
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -137,14 +151,16 @@ app.UseMiddleware<ExceptionMiddleware>();
 
 app.UseRateLimiter();
 
-app.Use(async (context, next) =>
-{
-    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
-    context.Response.Headers["X-Frame-Options"] = "DENY";
-    context.Response.Headers["X-XSS-Protection"] = "1; mode=block";
-    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-    await next();
-});
+app.Use(
+    async (context, next) =>
+    {
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        context.Response.Headers["X-Frame-Options"] = "DENY";
+        context.Response.Headers["X-XSS-Protection"] = "1; mode=block";
+        context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+        await next();
+    }
+);
 
 //手动从 DI 容器里拿服务
 using (var scope = app.Services.CreateScope())

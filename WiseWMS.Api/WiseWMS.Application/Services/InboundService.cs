@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using WiseWMS.Application.DTOs;
+using WiseWMS.Application.Publishers;
 using WiseWMS.Application.Services.Interfaces;
 using WiseWMS.Infrastructure.Data;
 using WiseWMS.Infrastructure.Entities;
@@ -11,11 +12,17 @@ namespace WiseWMS.Application.Services
     {
         private readonly ILogger<InboundService> _logger;
         private readonly AppDbContext _db;
+        private readonly MessagePublisher _publisher;
 
-        public InboundService(ILogger<InboundService> logger, AppDbContext db)
+        public InboundService(
+            ILogger<InboundService> logger,
+            AppDbContext db,
+            MessagePublisher publisher
+        )
         {
             _logger = logger;
             _db = db;
+            _publisher = publisher;
         }
 
         public async Task<InboundOrderDto> Create(CreateInboundDto dto, int operatorId)
@@ -89,6 +96,12 @@ namespace WiseWMS.Application.Services
 
                 await _db.SaveChangesAsync();
                 await tx.CommitAsync();
+
+                foreach (var item in dto.Items)
+                {
+                    var product = await _db.Products.FirstAsync(p => p.Id == item.ProductId);
+                    await _publisher.PublishInventoryChange(item.ProductId, product.Stock, orderNo);
+                }
 
                 _logger.LogInformation(
                     "入库单创建成功：单号={OrderNo}, 金额={TotalAmount}",

@@ -9,6 +9,9 @@
 # opencode skill cache
 .opencode/
 
+# CodeBuddy
+.codebuddy/
+
 # User-specific files
 *.rsuser
 *.suo
