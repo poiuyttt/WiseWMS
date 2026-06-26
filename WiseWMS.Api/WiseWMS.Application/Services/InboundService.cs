@@ -1,3 +1,5 @@
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using WiseWMS.Application.DTOs;
@@ -13,16 +15,19 @@ namespace WiseWMS.Application.Services
         private readonly ILogger<InboundService> _logger;
         private readonly AppDbContext _db;
         private readonly MessagePublisher _publisher;
+        private readonly IMapper _mapper;
 
         public InboundService(
             ILogger<InboundService> logger,
             AppDbContext db,
-            MessagePublisher publisher
+            MessagePublisher publisher,
+            IMapper mapper
         )
         {
             _logger = logger;
             _db = db;
             _publisher = publisher;
+            _mapper = mapper;
         }
 
         public async Task<InboundOrderDto> Create(CreateInboundDto dto, int operatorId)
@@ -119,29 +124,7 @@ namespace WiseWMS.Application.Services
                         .ThenInclude(i => i.Product)
                     .FirstAsync(o => o.Id == order.Id);
 
-                return new InboundOrderDto
-                {
-                    Id = order.Id,
-                    OrderNo = order.OrderNo,
-                    SupplierId = order.SupplierId,
-                    SupplierName = order.Supplier != null ? order.Supplier.Name : "",
-                    OperatorId = order.OperatorId,
-                    OperatorName = order.Operator != null ? order.Operator.DisplayName : "",
-                    TotalAmount = order.TotalAmount,
-                    Remark = order.Remark,
-                    CreatedAt = order.CreatedAt,
-                    Items = order
-                        .Items.Select(i => new InboundItemDto
-                        {
-                            Id = i.Id,
-                            ProductId = i.ProductId,
-                            ProductName = i.Product != null ? i.Product.Name : "",
-                            ProductSpec = i.Product != null ? i.Product.Spec : "",
-                            Quantity = i.Quantity,
-                            UnitPrice = i.UnitPrice,
-                        })
-                        .ToList(),
-                };
+                return _mapper.Map<InboundOrderDto>(order);
             }
             catch
             {
@@ -166,27 +149,16 @@ namespace WiseWMS.Application.Services
 
             int total = await query.CountAsync();
 
-            var item = await query
+            var items = await query
                 .OrderByDescending(o => o.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(o => new InboundOrderDto
-                {
-                    Id = o.Id,
-                    OrderNo = o.OrderNo,
-                    SupplierId = o.SupplierId,
-                    SupplierName = o.Supplier != null ? o.Supplier.Name : "",
-                    OperatorId = o.OperatorId,
-                    OperatorName = o.Operator != null ? o.Operator.DisplayName : "",
-                    TotalAmount = o.TotalAmount,
-                    Remark = o.Remark,
-                    CreatedAt = o.CreatedAt,
-                })
+                .ProjectTo<InboundOrderDto>(_mapper.ConfigurationProvider)
                 .ToListAsync();
 
             return new PagedResult<InboundOrderDto>
             {
-                Items = item,
+                Items = items,
                 Total = total,
                 Page = page,
                 PageSize = pageSize,
@@ -205,29 +177,7 @@ namespace WiseWMS.Application.Services
             if (order == null)
                 return null;
 
-            return new InboundOrderDto
-            {
-                Id = order.Id,
-                OrderNo = order.OrderNo,
-                SupplierId = order.SupplierId,
-                SupplierName = order.Supplier != null ? order.Supplier.Name : "",
-                OperatorId = order.OperatorId,
-                OperatorName = order.Operator != null ? order.Operator.DisplayName : "",
-                TotalAmount = order.TotalAmount,
-                Remark = order.Remark,
-                CreatedAt = order.CreatedAt,
-                Items = order
-                    .Items.Select(i => new InboundItemDto
-                    {
-                        Id = i.Id,
-                        ProductId = i.ProductId,
-                        ProductName = i.Product != null ? i.Product.Name : "",
-                        ProductSpec = i.Product != null ? i.Product.Spec : "",
-                        Quantity = i.Quantity,
-                        UnitPrice = i.UnitPrice,
-                    })
-                    .ToList(),
-            };
+            return _mapper.Map<InboundOrderDto>(order);
         }
     }
 }

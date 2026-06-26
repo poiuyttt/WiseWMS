@@ -1,3 +1,5 @@
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using WiseWMS.Application.DTOs;
@@ -13,31 +15,31 @@ namespace WiseWMS.Application.Services
         private readonly AppDbContext _db;
         private readonly ILogger<OutboundService> _logger;
         private readonly MessagePublisher _publisher;
+        private readonly IMapper _mapper;
 
         public OutboundService(
             AppDbContext db,
             ILogger<OutboundService> logger,
-            MessagePublisher publisher
+            MessagePublisher publisher,
+            IMapper mapper
         )
         {
             _db = db;
             _logger = logger;
             _publisher = publisher;
+            _mapper = mapper;
         }
 
         public async Task<OutboundOrderDto> Create(CreateOutboundDto dto, int operatorId)
         {
             using var tx = await _db.Database.BeginTransactionAsync();
-
             try
             {
                 string today = DateTime.UtcNow.ToString("yyyyMMdd");
-
                 int count = await _db.OutboundOrders.CountAsync(o =>
                     o.CreatedAt >= DateTime.UtcNow.Date
                 );
                 string orderNo = $"OUT-{today}-{count + 1:D4}";
-
                 decimal totalAmount = dto.Items.Sum(o => o.Quantity * o.SalePrice);
 
                 var order = new OutboundOrder
@@ -49,7 +51,6 @@ namespace WiseWMS.Application.Services
                     Remark = dto.Remark,
                     CreatedAt = DateTime.UtcNow,
                 };
-
                 _db.OutboundOrders.Add(order);
 
                 foreach (var item in dto.Items)
@@ -57,13 +58,11 @@ namespace WiseWMS.Application.Services
                     var product = await _db.Products.FirstOrDefaultAsync(p =>
                         p.Id == item.ProductId
                     );
-
                     if (product == null)
                     {
                         _logger.LogWarning("出库失败：商品不存在，ID={ProductId}", item.ProductId);
                         throw new InvalidOperationException($"商品不存在，ID={item.ProductId}");
                     }
-
                     if (product.Stock < item.Quantity)
                     {
                         _logger.LogWarning(
@@ -123,28 +122,7 @@ namespace WiseWMS.Application.Services
                         .ThenInclude(i => i.Product)
                     .FirstAsync(o => o.Id == order.Id);
 
-                return new OutboundOrderDto
-                {
-                    Id = order.Id,
-                    OrderNo = order.OrderNo,
-                    CustomerId = order.CustomerId,
-                    CustomerName = order.Customer != null ? order.Customer.Name : "",
-                    OperatorId = order.OperatorId,
-                    OperatorName = order.Operator != null ? order.Operator.DisplayName : "",
-                    TotalAmount = order.TotalAmount,
-                    Remark = order.Remark,
-                    CreatedAt = order.CreatedAt,
-                    Items = order
-                        .Items.Select(i => new OutboundItemDto
-                        {
-                            Id = i.Id,
-                            ProductId = i.ProductId,
-                            Quantity = i.Quantity,
-                            SalePrice = i.SalePrice,
-                            ProductName = i.Product != null ? i.Product.Name : "",
-                        })
-                        .ToList(),
-                };
+                return _mapper.Map<OutboundOrderDto>(order);
             }
             catch
             {
@@ -163,33 +141,20 @@ namespace WiseWMS.Application.Services
                 .OutboundOrders.Include(o => o.Customer)
                 .Include(o => o.Operator)
                 .AsQueryable();
-
             if (!string.IsNullOrWhiteSpace(keyword))
                 query = query.Where(o => o.OrderNo.Contains(keyword));
 
             int total = await query.CountAsync();
-
-            var item = await query
+            var items = await query
                 .OrderByDescending(o => o.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(o => new OutboundOrderDto
-                {
-                    Id = o.Id,
-                    OrderNo = o.OrderNo,
-                    CustomerId = o.CustomerId,
-                    CustomerName = o.Customer != null ? o.Customer.Name : "",
-                    OperatorId = o.OperatorId,
-                    OperatorName = o.Operator != null ? o.Operator.DisplayName : "",
-                    TotalAmount = o.TotalAmount,
-                    Remark = o.Remark,
-                    CreatedAt = o.CreatedAt,
-                })
+                .ProjectTo<OutboundOrderDto>(_mapper.ConfigurationProvider)
                 .ToListAsync();
 
             return new PagedResult<OutboundOrderDto>
             {
-                Items = item,
+                Items = items,
                 Total = total,
                 Page = page,
                 PageSize = pageSize,
@@ -205,32 +170,7 @@ namespace WiseWMS.Application.Services
                     .ThenInclude(i => i.Product)
                 .FirstOrDefaultAsync(o => o.Id == id);
 
-            if (order == null)
-                return null;
-
-            return new OutboundOrderDto
-            {
-                Id = order.Id,
-                OrderNo = order.OrderNo,
-                CustomerId = order.CustomerId,
-                CustomerName = order.Customer != null ? order.Customer.Name : "",
-                OperatorId = order.OperatorId,
-                OperatorName = order.Operator != null ? order.Operator.DisplayName : "",
-                TotalAmount = order.TotalAmount,
-                Remark = order.Remark,
-                CreatedAt = order.CreatedAt,
-                Items = order
-                    .Items.Select(i => new OutboundItemDto
-                    {
-                        Id = i.Id,
-                        ProductId = i.ProductId,
-                        ProductName = i.Product != null ? i.Product.Name : "",
-                        ProductSpec = i.Product != null ? i.Product.Spec : "",
-                        Quantity = i.Quantity,
-                        SalePrice = i.SalePrice,
-                    })
-                    .ToList(),
-            };
+            return order == null ? null : _mapper.Map<OutboundOrderDto>(order);
         }
     }
 }

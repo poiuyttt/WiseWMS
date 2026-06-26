@@ -31,6 +31,8 @@ services:
       - "7176:8080"
     environment:
       ConnectionStrings__DefaultConnection: "Server=sqlserver;Database=WiseWMS;User Id=sa;Password=WiseWMS_Pass123;TrustServerCertificate=True;"
+      ConnectionStrings__RabbitMQ: "rabbitmq"
+      ConnectionStrings__Redis: "redis:6379"
       Jwt__Key: "WiseWMS_SuperSecretKey_2026_MustBeAtLeast32Chars!"
       Jwt__Issuer: "WiseWMS"
       Jwt__Audience: "WiseWMS"
@@ -38,6 +40,10 @@ services:
     depends_on:
       sqlserver:
         condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      redis:
+        condition: service_started
     healthcheck:
       test: ["CMD", "dotnet", "--info"]
       interval: 30s
@@ -50,6 +56,30 @@ services:
         limits:
           memory: 512m
           cpus: "1"
+    networks:
+      - wisewms-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - wisewms-net
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
     networks:
       - wisewms-net
 
@@ -74,6 +104,8 @@ services:
 
 volumes:
   sqlserver_data:
+  redis_data:
+  rabbitmq_data:
 
 networks:
   wisewms-net:

@@ -8,13 +8,16 @@ import {
   updateProduct,
   exportProducts,
 } from "@/api/product";
+import { getCategories } from "@/api/category";
+import { useUserStore } from "@/stores/user";
 
 const keyword = ref("");
 const products = ref([]);
+const categories = ref([]);
 const total = ref(0);
 const page = ref(1);
 const pageSize = ref(10);
-const role = localStorage.getItem("role");
+const role = computed(() => useUserStore().role);
 
 const showDialog = ref(false);
 const editId = ref(0);
@@ -71,13 +74,17 @@ async function save() {
 }
 
 async function load() {
-  const res = await getProducts({
-    keyword: keyword.value,
-    page: page.value,
-    pageSize: pageSize.value,
-  });
+  const [res, cats] = await Promise.all([
+    getProducts({
+      keyword: keyword.value,
+      page: page.value,
+      pageSize: pageSize.value,
+    }),
+    getCategories(),
+  ]);
   products.value = res.items;
   total.value = res.total;
+  categories.value = cats;
 }
 
 onMounted(load);
@@ -166,10 +173,12 @@ async function handleExport() {
         </el-form-item>
         <el-form-item label="分类" prop="categoryId">
           <el-select v-model="form.categoryId" placeholder="请选择">
-            <el-option label="食品饮料" :value="1" />
-            <el-option label="日用品" :value="2" />
-            <el-option label="电子数码" :value="3" />
-            <el-option label="办公用品" :value="4" />
+            <el-option
+              v-for="c in categories"
+              :key="c.id"
+              :label="c.name"
+              :value="c.id"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="售价">

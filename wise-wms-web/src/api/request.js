@@ -1,5 +1,6 @@
 import axios from "axios";
 import { ElMessage } from "element-plus";
+import { useUserStore } from "@/stores/user";
 
 const request = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "https://localhost:7176",
@@ -7,7 +8,7 @@ const request = axios.create({
 });
 
 request.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+  const token = useUserStore().token;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -18,7 +19,7 @@ request.interceptors.response.use(
   (res) => res.data,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem("token");
+      useUserStore().logout();
       window.location.href = "/#/login";
     }
     ElMessage.error(err.response?.data?.message || "请求失败");

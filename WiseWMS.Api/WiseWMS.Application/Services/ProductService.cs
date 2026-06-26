@@ -1,4 +1,8 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Text.Json;
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using WiseWMS.Application.DTOs;
 using WiseWMS.Application.Services.Interfaces;
@@ -11,11 +15,20 @@ namespace WiseWMS.Application.Services
     {
         private readonly AppDbContext _db;
         private readonly ILogger<ProductService> _logger;
+        private readonly IDistributedCache _cache;
+        private readonly IMapper _mapper;
 
-        public ProductService(AppDbContext db, ILogger<ProductService> logger)
+        public ProductService(
+            AppDbContext db,
+            ILogger<ProductService> logger,
+            IDistributedCache cache,
+            IMapper mapper
+        )
         {
             _db = db;
             _logger = logger;
+            _cache = cache;
+            _mapper = mapper;
         }
 
         public async Task<PagedResult<ProductDto>> GetAll(string? keyword, int page, int pageSize)
@@ -30,9 +43,7 @@ namespace WiseWMS.Application.Services
             var query = _db.Products.Include(p => p.Category).AsQueryable();
 
             if (!string.IsNullOrEmpty(keyword))
-            {
                 query = query.Where(p => p.Name.Contains(keyword) || p.Spec.Contains(keyword));
-            }
 
             var total = await query.CountAsync();
 
@@ -40,20 +51,7 @@ namespace WiseWMS.Application.Services
                 .OrderByDescending(p => p.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(product => new ProductDto
-                {
-                    Id = product.Id,
-                    Name = product.Name,
-                    Spec = product.Spec,
-                    Unit = product.Unit,
-                    CategoryId = product.CategoryId,
-                    CategoryName = product.Category != null ? product.Category.Name : "",
-                    Price = product.Price,
-                    Stock = product.Stock,
-                    MinStock = product.MinStock,
-                    Description = product.Description,
-                    CreatedAt = product.CreatedAt,
-                })
+                .ProjectTo<ProductDto>(_mapper.ConfigurationProvider)
                 .ToListAsync();
 
             return new PagedResult<ProductDto>
@@ -67,26 +65,32 @@ namespace WiseWMS.Application.Services
 
         public async Task<List<ProductDto>> GetAll()
         {
+            const string cacheKey = "products_all";
+
+            var cached = await _cache.GetStringAsync(cacheKey);
+            if (cached != null)
+            {
+                _logger.LogInformation("商品列表命中缓存");
+                return JsonSerializer.Deserialize<List<ProductDto>>(cached) ?? [];
+            }
+
             _logger.LogInformation("查询商品列表");
 
-            return await _db
+            var products = await _db
                 .Products.Include(p => p.Category)
                 .OrderByDescending(p => p.CreatedAt)
-                .Select(p => new ProductDto
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Spec = p.Spec,
-                    Unit = p.Unit,
-                    CategoryId = p.CategoryId,
-                    CategoryName = p.Category != null ? p.Category.Name : "",
-                    Price = p.Price,
-                    Stock = p.Stock,
-                    MinStock = p.MinStock,
-                    Description = p.Description,
-                    CreatedAt = p.CreatedAt,
-                })
+                .ProjectTo<ProductDto>(_mapper.ConfigurationProvider)
                 .ToListAsync();
+
+            await _cache.SetStringAsync(
+                cacheKey,
+                JsonSerializer.Serialize(products),
+                new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
+                }
+            );
+            return products;
         }
 
         public async Task<ProductDto?> GetById(int id)
@@ -103,20 +107,7 @@ namespace WiseWMS.Application.Services
                 return null;
             }
 
-            return new ProductDto
-            {
-                Id = product.Id,
-                Name = product.Name,
-                Spec = product.Spec,
-                Unit = product.Unit,
-                CategoryId = product.CategoryId,
-                CategoryName = product.Category != null ? product.Category.Name : "",
-                Price = product.Price,
-                Stock = product.Stock,
-                MinStock = product.MinStock,
-                Description = product.Description,
-                CreatedAt = product.CreatedAt,
-            };
+            return _mapper.Map<ProductDto>(product);
         }
 
         public async Task<ProductDto?> Create(CreateProductDto dto)
@@ -133,44 +124,19 @@ namespace WiseWMS.Application.Services
                 );
                 return null;
             }
-            var product = new Product
-            {
-                Name = dto.Name,
-                Spec = dto.Spec,
-                Unit = dto.Unit,
-                CategoryId = dto.CategoryId,
-                Price = dto.Price,
-                Stock = 0,
-                MinStock = dto.MinStock,
-                Description = dto.Description,
-                CreatedAt = DateTime.UtcNow,
-            };
 
-            await _db.Products.AddAsync(product);
+            var product = _mapper.Map<Product>(dto);
+            product.Stock = 0;
+            product.CreatedAt = DateTime.UtcNow;
+
+            _db.Products.Add(product);
             await _db.SaveChangesAsync();
+            await _cache.RemoveAsync("products_all");
 
-            _logger.LogInformation(
-                "新增商品成功：ID={product.Id}，名称={product.Name}",
-                product.Id,
-                product.Name
-            );
+            _logger.LogInformation("新增商品成功：ID={Id}, 名称={Name}", product.Id, product.Name);
 
             await _db.Entry(product).Reference(p => p.Category).LoadAsync();
-
-            return new ProductDto
-            {
-                Id = product.Id,
-                Name = product.Name,
-                Spec = product.Spec,
-                Unit = product.Unit,
-                CategoryId = product.CategoryId,
-                CategoryName = product.Category != null ? product.Category.Name : "",
-                Price = product.Price,
-                Stock = product.Stock,
-                MinStock = product.MinStock,
-                Description = product.Description,
-                CreatedAt = product.CreatedAt,
-            };
+            return _mapper.Map<ProductDto>(product);
         }
 
         public async Task<ProductDto?> Update(int id, UpdateProductDto dto)
@@ -182,34 +148,14 @@ namespace WiseWMS.Application.Services
                 return null;
             }
 
-            product.Name = dto.Name;
-            product.Spec = dto.Spec;
-            product.Unit = dto.Unit;
-            product.CategoryId = dto.CategoryId;
-            product.Price = dto.Price;
-            product.MinStock = dto.MinStock;
-            product.Description = dto.Description;
-
+            _mapper.Map(dto, product);
             await _db.SaveChangesAsync();
+            await _cache.RemoveAsync("products_all");
 
             _logger.LogInformation("更新商品成功：ID={Id}", product.Id);
 
             await _db.Entry(product).Reference(p => p.Category).LoadAsync();
-
-            return new ProductDto
-            {
-                Id = product.Id,
-                Name = product.Name,
-                Spec = product.Spec,
-                Unit = product.Unit,
-                CategoryId = product.CategoryId,
-                CategoryName = product.Category != null ? product.Category.Name : "",
-                Price = product.Price,
-                Stock = product.Stock,
-                MinStock = product.MinStock,
-                Description = product.Description,
-                CreatedAt = product.CreatedAt,
-            };
+            return _mapper.Map<ProductDto>(product);
         }
 
         public async Task<bool> Delete(int id)
@@ -223,9 +169,9 @@ namespace WiseWMS.Application.Services
 
             _db.Products.Remove(product);
             await _db.SaveChangesAsync();
+            await _cache.RemoveAsync("products_all");
 
             _logger.LogInformation("删除商品成功：ID={Id}", id);
-
             return true;
         }
     }

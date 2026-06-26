@@ -7,13 +7,14 @@ import {
   createSupplier,
   updateSupplier,
 } from "@/api/supplier";
+import { useUserStore } from "@/stores/user";
 
 const keyword = ref("");
 const items = ref([]);
 const total = ref(0);
 const page = ref(1);
 const pageSize = ref(10);
-const role = localStorage.getItem("role");
+const role = computed(() => useUserStore().role);
 
 const showDialog = ref(false);
 const editId = ref(0);

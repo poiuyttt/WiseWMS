@@ -1,8 +1,10 @@
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Moq;
 using WiseWMS.Application.DTOs;
+using WiseWMS.Application.Profiles;
 using WiseWMS.Application.Publishers;
 using WiseWMS.Application.Services;
 using WiseWMS.Infrastructure.Data;
@@ -21,16 +23,18 @@ public class OutboundServiceTests
         return new AppDbContext(options);
     }
 
+    private IMapper CreateMapper()
+    {
+        var config = new MapperConfiguration(cfg => cfg.AddProfile<MappingProfile>());
+        return config.CreateMapper();
+    }
+
     private OutboundService CreateService(AppDbContext db)
     {
         var logger = Mock.Of<ILogger<OutboundService>>();
-        var publisherMock = new Mock<MessagePublisher>(
-            null!, Mock.Of<ILogger<MessagePublisher>>()
-        );
-        publisherMock
-            .Setup(p => p.PublishInventoryChange(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>()))
-            .Returns(Task.CompletedTask);
-        return new OutboundService(db, logger, publisherMock.Object);
+        var publisherMock = new Mock<MessagePublisher>(null!, Mock.Of<ILogger<MessagePublisher>>());
+        publisherMock.Setup(p => p.PublishInventoryChange(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>())).Returns(Task.CompletedTask);
+        return new OutboundService(db, logger, publisherMock.Object, CreateMapper());
     }
 
     private async Task SeedProduct(AppDbContext db, int id, int stock = 10)

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Moq;
 using WiseWMS.Application.DTOs;
@@ -21,7 +22,11 @@ public class DashboardServiceTests
     private DashboardService CreateService(AppDbContext db)
     {
         var logger = Mock.Of<ILogger<DashboardService>>();
-        return new DashboardService(db, logger);
+        var cacheMock = new Mock<IDistributedCache>();
+        cacheMock
+            .Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((byte[]?)null);
+        return new DashboardService(db, logger, cacheMock.Object);
     }
 
     [Fact]

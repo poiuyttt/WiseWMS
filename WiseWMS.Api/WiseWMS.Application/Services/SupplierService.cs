@@ -1,3 +1,5 @@
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using WiseWMS.Application.DTOs;
@@ -11,40 +13,31 @@ namespace WiseWMS.Application.Services
     {
         private readonly AppDbContext _db;
         private readonly ILogger<SupplierService> _logger;
+        private readonly IMapper _mapper;
 
-        public SupplierService(AppDbContext db, ILogger<SupplierService> logger)
+        public SupplierService(AppDbContext db, ILogger<SupplierService> logger, IMapper mapper)
         {
             _db = db;
             _logger = logger;
+            _mapper = mapper;
         }
 
         public async Task<PagedResult<SupplierDto>> GetAll(string? keyword, int page, int pageSize)
         {
             var query = _db.Suppliers.AsQueryable();
-
             if (!string.IsNullOrEmpty(keyword))
-            {
                 query = query.Where(s =>
                     s.Name.Contains(keyword)
                     || s.Contact.Contains(keyword)
                     || s.Phone.Contains(keyword)
                 );
-            }
 
             var total = await query.CountAsync();
-
             var items = await query
                 .OrderByDescending(s => s.Id)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(s => new SupplierDto
-                {
-                    Id = s.Id,
-                    Name = s.Name,
-                    Contact = s.Contact,
-                    Phone = s.Phone,
-                    Address = s.Address,
-                })
+                .ProjectTo<SupplierDto>(_mapper.ConfigurationProvider)
                 .ToListAsync();
 
             return new PagedResult<SupplierDto>
@@ -60,67 +53,33 @@ namespace WiseWMS.Application.Services
         {
             return await _db
                 .Suppliers.OrderByDescending(s => s.Id)
-                .Select(s => new SupplierDto
-                {
-                    Id = s.Id,
-                    Name = s.Name,
-                    Contact = s.Contact,
-                    Phone = s.Phone,
-                    Address = s.Address,
-                })
+                .ProjectTo<SupplierDto>(_mapper.ConfigurationProvider)
                 .ToListAsync();
         }
 
         public async Task<SupplierDto?> GetById(int id)
         {
             var supplier = await _db.Suppliers.FindAsync(id);
-            if (supplier == null)
-                return null;
-
-            return new SupplierDto
-            {
-                Id = supplier.Id,
-                Name = supplier.Name,
-                Contact = supplier.Contact,
-                Phone = supplier.Phone,
-                Address = supplier.Address,
-            };
+            return supplier == null ? null : _mapper.Map<SupplierDto>(supplier);
         }
 
         public async Task<SupplierDto?> Create(CreateSupplierDto dto)
         {
-            bool exists = await _db.Suppliers.AnyAsync(s => s.Name == dto.Name);
-            if (exists)
+            if (await _db.Suppliers.AnyAsync(s => s.Name == dto.Name))
             {
                 _logger.LogWarning("新增供应商失败：名称已存在：{Name}", dto.Name);
                 return null;
             }
 
-            var supplier = new Supplier
-            {
-                Name = dto.Name,
-                Contact = dto.Contact,
-                Phone = dto.Phone,
-                Address = dto.Address,
-            };
-
-            await _db.Suppliers.AddAsync(supplier);
+            var supplier = _mapper.Map<Supplier>(dto);
+            _db.Suppliers.Add(supplier);
             await _db.SaveChangesAsync();
-
             _logger.LogInformation(
-                "新增供应商成功：ID={Id}，名称={Name}",
+                "新增供应商成功：ID={Id}, 名称={Name}",
                 supplier.Id,
                 supplier.Name
             );
-
-            return new SupplierDto
-            {
-                Id = supplier.Id,
-                Name = supplier.Name,
-                Contact = supplier.Contact,
-                Phone = supplier.Phone,
-                Address = supplier.Address,
-            };
+            return _mapper.Map<SupplierDto>(supplier);
         }
 
         public async Task<SupplierDto?> Update(int id, UpdateSupplierDto dto)
@@ -132,23 +91,10 @@ namespace WiseWMS.Application.Services
                 return null;
             }
 
-            supplier.Name = dto.Name;
-            supplier.Contact = dto.Contact;
-            supplier.Phone = dto.Phone;
-            supplier.Address = dto.Address;
-
+            _mapper.Map(dto, supplier);
             await _db.SaveChangesAsync();
-
             _logger.LogInformation("更新供应商成功：ID={Id}", id);
-
-            return new SupplierDto
-            {
-                Id = supplier.Id,
-                Name = supplier.Name,
-                Contact = supplier.Contact,
-                Phone = supplier.Phone,
-                Address = supplier.Address,
-            };
+            return _mapper.Map<SupplierDto>(supplier);
         }
 
         public async Task<bool> Delete(int id)
@@ -160,8 +106,7 @@ namespace WiseWMS.Application.Services
                 return false;
             }
 
-            bool hasOrders = await _db.InboundOrders.AnyAsync(o => o.SupplierId == id);
-            if (hasOrders)
+            if (await _db.InboundOrders.AnyAsync(o => o.SupplierId == id))
             {
                 _logger.LogWarning("删除供应商失败：已被入库单引用，ID={Id}", id);
                 return false;
@@ -169,9 +114,7 @@ namespace WiseWMS.Application.Services
 
             _db.Suppliers.Remove(supplier);
             await _db.SaveChangesAsync();
-
             _logger.LogInformation("删除供应商成功：ID={Id}", id);
-
             return true;
         }
     }

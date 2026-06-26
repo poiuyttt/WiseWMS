@@ -1,7 +1,10 @@
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Moq;
 using WiseWMS.Application.DTOs;
+using WiseWMS.Application.Profiles;
 using WiseWMS.Application.Services;
 using WiseWMS.Infrastructure.Data;
 using WiseWMS.Infrastructure.Entities;
@@ -21,10 +24,18 @@ public class ProductServiceTests
         return db;
     }
 
+    private IMapper CreateMapper()
+    {
+        var config = new MapperConfiguration(cfg => cfg.AddProfile<MappingProfile>());
+        return config.CreateMapper();
+    }
+
     private ProductService CreateService(AppDbContext db)
     {
         var logger = Mock.Of<ILogger<ProductService>>();
-        return new ProductService(db, logger);
+        var cache = Mock.Of<IDistributedCache>();
+        var mapper = CreateMapper();
+        return new ProductService(db, logger, cache, mapper);
     }
 
     [Fact]

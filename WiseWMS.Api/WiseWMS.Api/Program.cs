@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using WiseWMS.Api.BackgroundServices;
 using WiseWMS.Api.Middleware;
 using WiseWMS.Application.Publishers;
 using WiseWMS.Application.Services;
@@ -84,6 +85,7 @@ builder.Services.AddScoped<IInboundService, InboundService>();
 builder.Services.AddScoped<IOutboundService, OutboundService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddSingleton(sp => new RabbitMqConnection(
     builder.Configuration.GetConnectionString("RabbitMQ") ?? "localhost"
 ));
@@ -110,6 +112,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         b => b.MigrationsAssembly("WiseWMS.Infrastructure")
     )
 );
+
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379";
+});
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -144,6 +151,8 @@ builder.Services.AddSwaggerGen(c =>
         }
     );
 });
+
+builder.Services.AddHostedService<InventorySyncConsumer>();
 
 var app = builder.Build();
 

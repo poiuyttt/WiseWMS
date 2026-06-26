@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from "vue-router";
+import { useUserStore } from "@/stores/user";
 
 const routes = [
   {
@@ -16,6 +17,7 @@ const routes = [
       { path: "inventory", component: () => import("@/views/Inventory.vue") },
       { path: "suppliers", component: () => import("@/views/Suppliers.vue") },
       { path: "customers", component: () => import("@/views/Customers.vue") },
+      { path: "categories", component: () => import("@/views/Categories.vue") },
     ],
   },
   { path: "/login", component: () => import("@/views/Login.vue") },
@@ -28,7 +30,8 @@ const router = createRouter({
 
 //路由守卫
 router.beforeEach((to) => {
-  const token = localStorage.getItem("token");
+  const userStore = useUserStore();
+  const token = userStore.token;
   if (to.path !== "/login" && !token) {
     return "/login";
   }

@@ -3,6 +3,7 @@ import { ref, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { login } from "@/api/auth";
+import { useUserStore } from "@/stores/user";
 
 const router = useRouter();
 const loading = ref(false);
@@ -21,9 +22,8 @@ async function handleLogin() {
   loading.value = true;
   try {
     const res = await login(form);
-    localStorage.setItem("token", res.token);
-    localStorage.setItem("displayName", res.displayName);
-    localStorage.setItem("role", res.role);
+    const userStore = useUserStore();
+    userStore.login(res);
     ElMessage.success("登录成功");
     router.push("/");
   } catch {

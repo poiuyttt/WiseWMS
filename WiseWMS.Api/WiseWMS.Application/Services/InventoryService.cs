@@ -1,3 +1,5 @@
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using WiseWMS.Application.DTOs;
@@ -10,75 +12,32 @@ namespace WiseWMS.Application.Services
     {
         private readonly AppDbContext _db;
         private readonly ILogger<InventoryService> _logger;
+        private readonly IMapper _mapper;
 
-        public InventoryService(AppDbContext db, ILogger<InventoryService> logger)
+        public InventoryService(AppDbContext db, ILogger<InventoryService> logger, IMapper mapper)
         {
             _db = db;
             _logger = logger;
+            _mapper = mapper;
         }
 
-        public async Task<PagedResult<InventoryTransactionDto>> GetTransactions(
-            int productId,
-            int page,
-            int pageSize
-        )
+        public async Task<PagedResult<InventoryTransactionDto>> GetTransactions(int productId, int page, int pageSize)
         {
-            var query = _db
-                .InventoryTransactions.Include(q => q.Product)
-                .Include(q => q.Operator)
-                .Where(q => q.ProductId == productId)
-                .AsQueryable();
+            var query = _db.InventoryTransactions.Include(q => q.Product).Include(q => q.Operator)
+                .Where(q => q.ProductId == productId).AsQueryable();
 
             int total = await query.CountAsync();
+            var items = await query.OrderByDescending(q => q.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
+                .ProjectTo<InventoryTransactionDto>(_mapper.ConfigurationProvider).ToListAsync();
 
-            var items = await query
-                .OrderByDescending(q => q.CreatedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(q => new InventoryTransactionDto
-                {
-                    Id = q.Id,
-                    ProductId = q.ProductId,
-                    ProductName = q.Product != null ? q.Product.Name : "",
-                    ProductSpec = q.Product != null ? q.Product.Spec : "",
-                    Type = q.Type,
-                    Quantity = q.Quantity,
-                    StockBefore = q.StockBefore,
-                    StockAfter = q.StockAfter,
-                    OrderNo = q.OrderNo,
-                    OperatorName = q.Operator != null ? q.Operator.DisplayName : "",
-                    CreatedAt = q.CreatedAt,
-                })
-                .ToListAsync();
-
-            return new PagedResult<InventoryTransactionDto>
-            {
-                Items = items,
-                Total = total,
-                Page = page,
-                PageSize = pageSize,
-            };
+            return new PagedResult<InventoryTransactionDto> { Items = items, Total = total, Page = page, PageSize = pageSize };
         }
 
         public async Task<List<ProductDto>> GetLowStockProducts()
         {
-            return await _db
-                .Products.Include(p => p.Category)
+            return await _db.Products.Include(p => p.Category)
                 .Where(p => p.Stock <= p.MinStock)
-                .Select(p => new ProductDto
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Spec = p.Spec,
-                    Unit = p.Unit,
-                    CategoryId = p.CategoryId,
-                    CategoryName = p.Category != null ? p.Category.Name : "",
-                    Price = p.Price,
-                    Stock = p.Stock,
-                    MinStock = p.MinStock,
-                    Description = p.Description,
-                    CreatedAt = p.CreatedAt,
-                })
+                .ProjectTo<ProductDto>(_mapper.ConfigurationProvider)
                 .ToListAsync();
         }
     }

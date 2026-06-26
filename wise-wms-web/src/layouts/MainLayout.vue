@@ -1,14 +1,16 @@
 <script setup>
 import { useRoute, useRouter } from "vue-router";
 import { computed } from "vue";
+import { useUserStore } from "@/stores/user";
 
 const route = useRoute();
 const router = useRouter();
-const displayName = computed(() => localStorage.getItem("displayName") || "");
-const role = computed(() => localStorage.getItem("role") || "");
+const userStore = useUserStore();
+const displayName = computed(() => userStore.displayName || "");
+const role = computed(() => userStore.role || "");
 
 function logout() {
-  localStorage.clear();
+  userStore.logout();
   router.push("/login");
 }
 </script>
@@ -34,6 +36,7 @@ function logout() {
         <el-menu-item index="/outbound">📤 出库单</el-menu-item>
         <el-menu-item index="/suppliers">🏭 供应商管理</el-menu-item>
         <el-menu-item index="/customers">👥 客户管理</el-menu-item>
+        <el-menu-item index="/categories">🏷️ 分类管理</el-menu-item>
         <el-menu-item index="/inventory">🔍 库存查询</el-menu-item>
         <el-menu-item index="/login" @click="logout">🚪 退出</el-menu-item>
       </el-menu>

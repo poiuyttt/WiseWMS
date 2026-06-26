@@ -1,7 +1,9 @@
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 using WiseWMS.Application.DTOs;
+using WiseWMS.Application.Profiles;
 using WiseWMS.Application.Services;
 using WiseWMS.Infrastructure.Data;
 using WiseWMS.Infrastructure.Entities;
@@ -18,10 +20,16 @@ public class CustomerServiceTests
         return new AppDbContext(options);
     }
 
+    private IMapper CreateMapper()
+    {
+        var config = new MapperConfiguration(cfg => cfg.AddProfile<MappingProfile>());
+        return config.CreateMapper();
+    }
+
     private CustomerService CreateService(AppDbContext db)
     {
         var logger = Mock.Of<ILogger<CustomerService>>();
-        return new CustomerService(db, logger);
+        return new CustomerService(db, logger, CreateMapper());
     }
 
     [Fact]
