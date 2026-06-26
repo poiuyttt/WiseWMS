@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace WiseWMS.Application.DTOs
+﻿namespace WiseWMS.Application.DTOs
 {
     public class InboundOrderDto
     {

@@ -1,5 +1,3 @@
-using System;
-
 namespace WiseWMS.Infrastructure.Entities
 {
     /// <summary>

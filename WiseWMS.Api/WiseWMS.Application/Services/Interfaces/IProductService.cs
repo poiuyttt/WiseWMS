@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using WiseWMS.Application.DTOs;
 
 namespace WiseWMS.Application.Services.Interfaces
